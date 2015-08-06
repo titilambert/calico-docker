@@ -4,6 +4,8 @@ endpoints:
     pre: [calico]
   "POST /*/containers/*/start":
     post: [calico]
+  "POST /*/containers/*/stop":
+    post: [calico]
   "GET /*/containers/*/json":
     post: [calico]
 adapters:

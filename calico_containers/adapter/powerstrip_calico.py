@@ -15,6 +15,7 @@
 
 from twisted.internet import reactor
 from twisted.web import server, resource
+import consul
 import json
 import logging
 import logging.handlers
@@ -28,10 +29,14 @@ import netns
 from ipam import SequentialAssignment, IPAMClient
 
 _log = logging.getLogger(__name__)
+_session = consul.Consul()
 
 ENV_IP = "CALICO_IP"
 ENV_PROFILE = "CALICO_PROFILE"
 ORCHESTRATOR_ID = "docker"
+APP_NAME = "MARATHON_APP_ID"
+CONSUL_CALICO_DNS = "-direct" # To differentiate from services registered with
+                              # Consul agents IPs
 
 hostname = socket.gethostname()
 
@@ -101,7 +106,7 @@ class AdapterResource(resource.Resource):
             else:
                 _log.error("Unsupported hook type: %s",
                            request_content["Type"])
-                raise Exception("unsupported hook type %s" %
+                raise Exception("Unsupported hook type %s" %
                                 (request_content["Type"],))
             _log.debug("Result: %s", result)
             return result
@@ -157,10 +162,20 @@ class AdapterResource(resource.Resource):
                 # /version/containers/id/start
                 _log.debug('Intercepted container start request')
                 self._install_or_reinstall_endpoints(client_request, cont, cid)
-            elif ctype== 'json':
+            elif ctype == 'json':
                 # /version/containers/*/json
                 _log.debug('Intercepted container json request')
                 self._update_container_info(cid, server_response)
+            elif 'stop' in ctype:
+                # /version/containers/id/stop
+                envs = cont["Config"]["Env"]
+                for env in envs:
+                    if APP_NAME in env:
+                        app_name = env.split('=')[1]
+                        consul_service_name = app_name.lstrip('/') + CONSUL_CALICO_DNS
+                        _deregister_consul_service(_session, consul_service_name)
+                        _log.info("Deregistered Consul service, service_id: %s",
+                                  consul_service_name)
             else:
                 _log.debug('Unrecognized path: %s', request_path)
         except BaseException:
@@ -215,6 +230,10 @@ class AdapterResource(resource.Resource):
             env_dict = env_to_dictionary(env_list)
             ip_str = env_dict[ENV_IP]
             profile = env_dict.get(ENV_PROFILE, None)
+            app_name = env_dict.get(APP_NAME, None)
+            consul_service_name = None
+            if app_name:
+                consul_service_name = app_name.lstrip('/') + CONSUL_CALICO_DNS
         except KeyError as e:
             # This error is benign for missing ENV_IP, since it means not to
             # set up Calico networking for this container.
@@ -265,6 +284,15 @@ class AdapterResource(resource.Resource):
 
         self.datastore.set_endpoint(hostname, cid, endpoint)
         _log.info("Finished network for container %s, IP=%s", cid, ip)
+
+        consul_service_ip = str(ip)
+        if consul_service_name and consul_service_ip:
+            _register_consul_service(_session, consul_service_name, consul_service_ip)
+            _log.info("Registered service %s in Consul, IP=%s",
+                      consul_service_name, consul_service_ip)
+        else:
+            _log.error("Unable to register service in Consul, service name=%s"
+                       "service IP=%s", consul_service_name, consul_service_ip)
 
         return
 
@@ -409,6 +437,13 @@ def _client_request_net_none(client_request):
         _log.warning("Error setting net=none: %s, request was %s",
                      e, client_request)
 
+def _register_consul_service(session, name, address):
+    """Register service in Consul with an IP address from Calico network."""
+    return session.agent.service.register(name=name, address=address)
+
+def _deregister_consul_service(session, service_id):
+    """Remove service in Consul."""
+    return session.agent.service.deregister(service_id=service_id)
 
 def get_adapter():
     root = resource.Resource()
