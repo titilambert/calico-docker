@@ -17,7 +17,7 @@
 """calicoctl
 
 Override the host:port of the ETCD server by setting the environment variable
-ETCD_AUTHORITY [default: 127.0.0.1:4001]
+ETCD_AUTHORITY [default: 127.0.0.1:2379]
 
 Usage:
   calicoctl node --ip=<IP> [--node-image=<DOCKER_IMAGE_NAME>] [--ip6=<IP6>] [--as=<AS_NUM>]

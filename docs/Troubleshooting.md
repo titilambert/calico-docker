@@ -8,7 +8,7 @@ If you use `sudo` for commands like `docker run`, remember that your environment
 
 ## etcd.EtcdException: No more machines in the cluster
 
-If you see this exception, it means `calicoctl` can't communicate with your etcd cluster.  Ensure etcd is up and listening on `localhost:4001`
+If you see this exception, it means `calicoctl` can't communicate with your etcd cluster.  Ensure etcd is up and listening on `localhost:2379`
 
 ## Basic checks
 Running `ip route` shows what routes have been programmed. Routes from other hosts should show that they are programmed by bird.
