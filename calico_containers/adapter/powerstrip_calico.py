@@ -35,6 +35,7 @@ ENV_IP = "CALICO_IP"
 ENV_PROFILE = "CALICO_PROFILE"
 ORCHESTRATOR_ID = "docker"
 APP_NAME = "MARATHON_APP_ID"
+APP_PORT = "SERVICE_PORT"
 CONSUL_CALICO_DNS = "-direct" # To differentiate from services registered with
                               # Consul agents IPs
 
@@ -231,6 +232,7 @@ class AdapterResource(resource.Resource):
             ip_str = env_dict[ENV_IP]
             profile = env_dict.get(ENV_PROFILE, None)
             app_name = env_dict.get(APP_NAME, None)
+            app_port = env_dict.get(APP_PORT, None)
             consul_service_name = None
             if app_name:
                 consul_service_name = app_name.lstrip('/') + CONSUL_CALICO_DNS
@@ -288,8 +290,8 @@ class AdapterResource(resource.Resource):
         consul_service_ip = str(ip)
         if consul_service_name and consul_service_ip:
             _register_consul_service(_session, consul_service_name, consul_service_ip)
-            _log.info("Registered service %s in Consul, IP=%s",
-                      consul_service_name, consul_service_ip)
+            _log.info("Registered service %s in Consul, IP=%s, PORT=%s",
+                      consul_service_name, consul_service_ip, app_port)
         else:
             _log.error("Unable to register service in Consul, service name=%s"
                        "service IP=%s", consul_service_name, consul_service_ip)
@@ -437,9 +439,9 @@ def _client_request_net_none(client_request):
         _log.warning("Error setting net=none: %s, request was %s",
                      e, client_request)
 
-def _register_consul_service(session, name, address):
+def _register_consul_service(session, name, address, port):
     """Register service in Consul with an IP address from Calico network."""
-    return session.agent.service.register(name=name, address=address)
+    return session.agent.service.register(name=name, address=address, port=int(port))
 
 def _deregister_consul_service(session, service_id):
     """Remove service in Consul."""
