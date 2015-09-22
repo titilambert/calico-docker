@@ -232,7 +232,7 @@ class AdapterResource(resource.Resource):
             ip_str = env_dict[ENV_IP]
             profile = env_dict.get(ENV_PROFILE, None)
             app_name = env_dict.get(APP_NAME, None)
-            app_port = env_dict.get(APP_PORT, None)
+            app_port = env_dict.get(APP_PORT, 0)
             consul_service_name = None
             if app_name:
                 consul_service_name = app_name.lstrip('/') + CONSUL_CALICO_DNS
@@ -289,7 +289,8 @@ class AdapterResource(resource.Resource):
 
         consul_service_ip = str(ip)
         if consul_service_name and consul_service_ip:
-            _register_consul_service(_session, consul_service_name, consul_service_ip)
+            _register_consul_service(_session, consul_service_name,
+                                     consul_service_ip, app_port)
             _log.info("Registered service %s in Consul, IP=%s, PORT=%s",
                       consul_service_name, consul_service_ip, app_port)
         else:
